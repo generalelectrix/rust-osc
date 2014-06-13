@@ -113,7 +113,7 @@ fn main() {
 	}
 
 	spawn(proc(){
-		for i in range(0,n) {
+		for _ in range(0,n) {
 
 			let tbvec = bigvec.clone();
 			std::io::timer::sleep(10);
@@ -122,7 +122,7 @@ fn main() {
 		}
 	});
 
-	for i in range(0,10) {
+	for _ in range(0,10) {
 
 		let rx = ctrl.tune_in();
 
