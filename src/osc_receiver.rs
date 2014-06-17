@@ -304,12 +304,12 @@ fn test_read_null_term_string(){
 	// remember that Osc strings are always multiples of 4 bytes!
 
 	// simple case
-	let buf1 = ~[97u8, 98u8, 99u8, 0u8];
+	let buf1 = [97u8, 98u8, 99u8, 0u8];
 	let mut reader = BufReader::new(buf1.as_slice());
 	assert_eq!(read_null_term_string(&mut reader),Ok("abc".to_string()));
 
 	// multiple nulls and multiple calls
-	let buf2 = ~[97u8, 98u8, 0u8, 0u8, 99u8, 0u8];
+	let buf2 = [97u8, 98u8, 0u8, 0u8, 99u8, 0u8];
 	reader = BufReader::new(buf2.as_slice());
 	assert_eq!(read_null_term_string(&mut reader),Ok("ab".to_string()));
 	assert_eq!(read_null_term_string(&mut reader),Ok("c".to_string()));
@@ -317,16 +317,16 @@ fn test_read_null_term_string(){
 
 
 	// some corner cases
-	let buf3 = ~[];
+	let buf3 = [];
 	reader = BufReader::new(buf3.as_slice());
 	assert!(read_null_term_string(&mut reader).is_err());
 
-	let buf4 = ~[0u8];
+	let buf4 = [0u8];
 	reader = BufReader::new(buf4.as_slice());
 	assert_eq!(read_null_term_string(&mut reader),Ok("".to_string()));
 	assert!(read_null_term_string(&mut reader).is_err());
 
-	let buf5 = ~[0u8, 0u8, 0u8, 0u8, 0u8];
+	let buf5 = [0u8, 0u8, 0u8, 0u8, 0u8];
 	reader = BufReader::new(buf5.as_slice());
 	assert_eq!(read_null_term_string(&mut reader),Ok("".to_string()));
 	assert_eq!(read_null_term_string(&mut reader),Ok("".to_string()));
