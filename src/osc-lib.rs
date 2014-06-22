@@ -3,7 +3,6 @@
 #![feature(globs)]
 #![feature(struct_variant)]
 #![feature(macro_rules)]
-#![macro_escape]
 // if you have made changes and are re-compiling, you may want to turn these warnings back on
 #![allow(unused_must_use)]
 #![allow(dead_code)]

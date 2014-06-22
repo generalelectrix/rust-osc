@@ -1,3 +1,5 @@
+//! Module for sending OSC over a UDP socket.
+
 extern crate std;
 
 use std::io::net::udp::UdpSocket;
@@ -32,7 +34,7 @@ impl OscSender {
 	}
 
 
-	/// Attempt to send a Rust Osc packet as an Osc packet.
+	/// Attempt to send a Rust OSC packet as an OSC UDP packet.
 	pub fn send(&mut self, packet: OscPacket) -> IoResult<()> {
 		// note that we trim off the first four bytes, as they are the packet length
 		// and the socket automatically calcs and sends that
@@ -40,6 +42,37 @@ impl OscSender {
 	}
 
 
+}
+
+// convert an OscArg to its correpsonding type tag character
+fn arg_to_type_tag(arg: &OscArg) -> char {
+	match *arg {
+		OscInt(_) => 'i',
+		OscFloat(_) => 'f',
+		OscStr(_) => 's',
+		OscBlob(_) => 'b'
+		/*
+		OscInt64(_) => 'h',
+		OscFloat64(_) => 'd',
+		OscTime(_) => 't',
+		OscSymbol(_) => 'S',
+		OscChar(_) => 'c',
+		OscColor(_) => 'r',
+		OscMidi(_) => 'm',
+		OscAssert(a) => {
+			match a {
+				True => 'T',
+				False => 'F',
+				Nil => 'N',
+				Infinitum => 'I'
+			}
+		},
+		// this was all nice and pretty until OscArray had to come fuck it all up
+		// with OscArray I have to return a damn string instead of a char.  lame.
+		// this right here is enough reason to just support OSC 1.0 for now
+		OscArray(v) =>
+		*/
+	}
 }
 
 // format an Osc packet as a buffer of u8

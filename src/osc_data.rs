@@ -1,64 +1,9 @@
 #![macro_escape]
+//! OSC data types and helper functions for handling those types.
 
-// there are really two kinds of messages in OSC, they are either a message or a bundle
-#[deriving(Show,Clone,PartialEq,PartialOrd)]
-pub enum OscPacket {
-	// a message is the real meat
-	OscMessage{
-		pub addr: String,
-		pub args: Vec<OscArg>
-	},
-	// a bundle is intended to synchronize multiple commands
-	// essentially it bundles together multiple OSC packets
-	OscBundle{
-		pub time_tag: OscTimeTag,
-		pub conts: Vec<OscPacket>
-	}
-}
-
-/// Find out if a packet contains a specified OSC address.
-pub fn packet_has_addr(packet: &OscPacket, addr_match: &str) -> bool {
-	match *packet {
-		OscMessage{addr: ref addr, args: _} => addr_match == addr.as_slice(),
-		OscBundle{time_tag: _, conts: ref conts} => {
-			for subpacket in conts.iter() {
-				if packet_has_addr(subpacket, addr_match) { return true; }
-			}
-			false
-		}
-	}
-}
-
-/// Get the args associated with the given address.
-pub fn get_args_with_addr(packet: OscPacket, addr_match: &str) -> Option<Vec<OscArg>> {
-
-	match packet {
-		OscMessage{addr: addr, args: args} => {
-			if addr_match == addr.as_slice() {
-				Some(args)
-			}
-			else {
-				None
-			}
-		},
-		OscBundle{ time_tag: _, conts: conts} => {
-			let mut arg_vec = Vec::new();
-			for subpacket in conts.move_iter() {
-				match get_args_with_addr(subpacket, addr_match) {
-					Some(a) => arg_vec.push_all_move(a),
-					None => ()
-				}
-			}
-			if arg_vec.is_empty() {
-				return None;
-			}
-			Some(arg_vec)
-		}
-	}
-}
-
-// enum to contain the allowed OSC argument types
-// this is the 1.0 specification, may want to look into 1.1 in the future
+/// An Osc argument is an actual data payload - a number, string, or binary array.
+/// At present, this library only supports the Osc 1.0 required standard, not any
+/// of the optional types or the 1.1 standard.
 #[deriving(Show,Clone,PartialEq,PartialOrd)]
 pub enum OscArg {
 	OscInt(i32),
@@ -95,38 +40,6 @@ struct MidiMessage {
 }
 */
 
-/// Convert an OscArg to its correpsonding type tag character
-pub fn arg_to_type_tag(arg: &OscArg) -> char {
-	match *arg {
-		OscInt(_) => 'i',
-		OscFloat(_) => 'f',
-		OscStr(_) => 's',
-		OscBlob(_) => 'b'
-		/*
-		OscInt64(_) => 'h',
-		OscFloat64(_) => 'd',
-		OscTime(_) => 't',
-		OscSymbol(_) => 'S',
-		OscChar(_) => 'c',
-		OscColor(_) => 'r',
-		OscMidi(_) => 'm',
-		OscAssert(a) => {
-			match a {
-				True => 'T',
-				False => 'F',
-				Nil => 'N',
-				Infinitum => 'I'
-			}
-		},
-		// this was all nice and pretty until OscArray had to come fuck it all up
-		// with OscArray I have to return a damn string instead of a char.  lame.
-		// this right here is enough reason to just support OSC 1.0 for now
-		OscArray(v) =>
-		*/
-	}
-}
-
-// experimental macro for making dealing with osc args easier
 /// Helper macro to check if an OscArg is a given type, produces a bool
 #[macro_export]
 macro_rules! arg_is_type(
@@ -138,8 +51,6 @@ macro_rules! arg_is_type(
 	)
 )
 
-
-// experimental macro for making dealing with osc args easier
 /// Helper macro to unwrap an OscArg as a given type, produces None if the types don't match
 #[macro_export]
 macro_rules! unwrap_if(
@@ -151,8 +62,69 @@ macro_rules! unwrap_if(
 	)
 )
 
+/// Type definition for a fixed-point OSC time tag.
 pub type OscTimeTag = (u32, u32);
 
+/// An OscPacket represents a single UDP packet sent or received.  A packet is
+/// either a single OscMessage with an address and a list of arguments, or a
+/// OscBundle, essentialy a single packet with a timestamp containing multiple
+/// OscPackets inside with the intention to execute those packets simultaneously.
+#[deriving(Show,Clone,PartialEq,PartialOrd)]
+pub enum OscPacket {
+	/// An OscMessage contains the destination address and list of OscArgs
+	OscMessage{
+		pub addr: String,
+		pub args: Vec<OscArg>
+	},
+	/// A bundle is intended to synchronize multiple commands; essentially it
+	/// bundles together multiple OSC packets
+	OscBundle{
+		pub time_tag: OscTimeTag,
+		pub conts: Vec<OscPacket>
+	}
+}
+
+/// Find out if a packet contains a specified OSC address.
+pub fn packet_has_addr(packet: &OscPacket, addr_match: &str) -> bool {
+	match *packet {
+		OscMessage{addr: ref addr, args: _} => addr_match == addr.as_slice(),
+		OscBundle{time_tag: _, conts: ref conts} => {
+			for subpacket in conts.iter() {
+				if packet_has_addr(subpacket, addr_match) { return true; }
+			}
+			false
+		}
+	}
+}
+
+/// Get the args associated with the given address; returns None if the given packet
+/// didn't contain the target address.
+pub fn get_args_with_addr(packet: OscPacket, addr_match: &str) -> Option<Vec<OscArg>> {
+
+	match packet {
+		OscMessage{addr: addr, args: args} => {
+			if addr_match == addr.as_slice() {
+				Some(args)
+			}
+			else {
+				None
+			}
+		},
+		OscBundle{ time_tag: _, conts: conts} => {
+			let mut arg_vec = Vec::new();
+			for subpacket in conts.move_iter() {
+				match get_args_with_addr(subpacket, addr_match) {
+					Some(a) => arg_vec.push_all_move(a),
+					None => ()
+				}
+			}
+			if arg_vec.is_empty() {
+				return None;
+			}
+			Some(arg_vec)
+		}
+	}
+}
 
 #[test]
 fn test_packet_has_addr(){

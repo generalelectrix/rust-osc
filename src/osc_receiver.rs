@@ -1,3 +1,5 @@
+//! Module for receiving OSC over a UDP socket.
+
 extern crate std;
 
 use std::io::net::udp::UdpSocket;
@@ -13,7 +15,7 @@ use osc_util::*;
 
 use osc_sender::*;
 
-// apparently 1536 is a common UDP MTU.
+// Max size of UDP buffer; apparently 1536 is a common UDP MTU.
 static UDP_BUFFER_SIZE: uint = 1536;
 
 // static BUNDLE_ID: &'static str = "#bundle"; // perhaps we may want to use this some other day
@@ -81,6 +83,7 @@ fn read_packet(buf: &[u8]) -> IoResult<OscPacket> {
 	}
 }
 
+// check if the message is a bundle by comparing the first character
 fn is_bundle(buf: &[u8]) -> bool {
 	buf[0] as char == BUNDLE_FIRST_CHAR
 }
