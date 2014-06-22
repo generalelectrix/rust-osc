@@ -8,7 +8,7 @@ ADT for representing all the different classes of Osc arguments and messages as
 two enum types with variants.
 
 This was compiled and tested under
-rustc 0.11.0-pre-nightly (918dbfe 2014-06-02 20:51:30 -0700)
+rustc 0.11.0-pre-nightly (6d8342f 2014-06-14 17:51:49 +0000)
 
 I will periodically update this to the latest nightly.  If you find bugs or if
 compilation under the current nightly fails, please feel free to let me know!
