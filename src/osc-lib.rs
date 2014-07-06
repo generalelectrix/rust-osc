@@ -1,4 +1,4 @@
-#![crate_id = "osc#0.1"]
+#![crate_name = "osc"]
 
 #![feature(globs)]
 #![feature(struct_variant)]
