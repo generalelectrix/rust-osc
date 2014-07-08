@@ -38,7 +38,7 @@ impl OscSender {
 	pub fn send(&mut self, packet: OscPacket) -> IoResult<()> {
 		// note that we trim off the first four bytes, as they are the packet length
 		// and the socket automatically calcs and sends that
-		self.socket.sendto(packet_to_buffer(packet).slice_from(4), self.dest)
+		self.socket.send_to(packet_to_buffer(packet).slice_from(4), self.dest)
 	}
 
 
