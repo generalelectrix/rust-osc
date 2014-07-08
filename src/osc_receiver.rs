@@ -56,7 +56,7 @@ impl OscReceiver {
 
 		self.socket.set_read_timeout(timeout);
 
-		match self.socket.recvfrom(buf) {
+		match self.socket.recv_from(buf) {
 			// ignoring source address from now, can bind it here if desired
 			// if we didn't receive enough data, throw an error
 			Ok((num, _)) if num < MIN_OSC_PACKET_SIZE => {

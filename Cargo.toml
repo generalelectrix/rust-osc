@@ -1,0 +1,8 @@
+[project]
+name = "rust-osc"
+version = "0.1.0"
+authors = []
+
+[[lib]]
+name = "osc"
+path = "src/osc-lib.rs"
