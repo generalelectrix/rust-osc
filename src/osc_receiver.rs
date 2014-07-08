@@ -46,16 +46,19 @@ impl OscReceiver {
 	}
 
 	/// Receive a Osc packet.  Blocks until a packet is available at the port.
-	pub fn recv(&mut self) -> IoResult<OscPacket> {
+	/// Can optionally specify a timeout on the blocking read.
+	pub fn recv(&mut self, timeout: Option<u64>) -> IoResult<OscPacket> {
 
 		// initialize a receive buffer
 		let mut buf = [0u8, ..UDP_BUFFER_SIZE];
 
 		let mut packet_len;
 
+		self.socket.set_read_timeout(timeout);
+
 		match self.socket.recvfrom(buf) {
 			// ignoring source address from now, can bind it here if desired
-			// if we didn't received enough data, throw an error
+			// if we didn't receive enough data, throw an error
 			Ok((num, _)) if num < MIN_OSC_PACKET_SIZE => {
 				return Err(IoError{kind: InvalidInput, desc: PACKET_SIZE_ERR, detail: None});
 			}
