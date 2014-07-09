@@ -235,7 +235,7 @@ fn read_osc_arg(reader: &mut BufReader, type_tag: char) -> IoResult<OscArg> {
 			Ok(v) => Ok(OscBlob(v)),
 			Err(e) => Err(e)
 		},
-		_ 	=> Err(IoError{kind: InvalidInput, desc: "Invalid type tag.", detail: Some(type_tag.to_str())})
+		_ 	=> Err(IoError{kind: InvalidInput, desc: "Invalid type tag.", detail: Some(type_tag.to_string())})
 	}
 }
 
