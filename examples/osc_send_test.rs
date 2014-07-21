@@ -50,7 +50,7 @@ fn main() {
 
 		println!("trying to send");
 
-		match sender.send(tests.get(i % tests.len()).clone()) {
+		match sender.send(tests[i % tests.len()].clone()) {
 		    Ok(_) => println!("send ok"),
 		    Err(e) => println!("Error: {}", e)
 		}
