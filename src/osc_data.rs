@@ -112,7 +112,7 @@ pub fn get_args_with_addr(packet: OscPacket, addr_match: &str) -> Option<Vec<Osc
 		},
 		OscBundle{ time_tag: _, conts: conts} => {
 			let mut arg_vec = Vec::new();
-			for subpacket in conts.move_iter() {
+			for subpacket in conts.into_iter() {
 				match get_args_with_addr(subpacket, addr_match) {
 					Some(a) => arg_vec.push_all_move(a),
 					None => ()
