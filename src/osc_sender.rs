@@ -111,7 +111,7 @@ pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 
 			//--- write all the arguments
 
-			for arg in args.move_iter() {
+			for arg in args.into_iter() {
 				write_arg(&mut buf, arg);
 			}
 		},
@@ -129,7 +129,7 @@ pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 			}
 
 			//--- write each piece of the bundle payload, themselves Osc packets
-			for packet in conts.move_iter() {
+			for packet in conts.into_iter() {
 				buf.write(packet_to_buffer(packet).as_slice());
 			}
 		}
