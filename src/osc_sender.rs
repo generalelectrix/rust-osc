@@ -152,10 +152,10 @@ pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 fn to_osc_string(mut string: String) -> String {
 
 	// add a null-terminator
-	string.push_char('\0');
+	string.push('\0');
 
 	// pad with nulls
-	pad_with_null!(string push_char string.len());
+	pad_with_null!(string push string.len());
 
 	string
 }
