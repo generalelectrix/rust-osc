@@ -3,6 +3,6 @@ name = "rust-osc"
 version = "0.1.0"
 authors = [ "general.electrix@gmail.com" ]
 
-[[lib]]
+[lib]
 name = "osc"
 path = "src/osc-lib.rs"

@@ -16,14 +16,14 @@ use osc_util::*;
 use osc_sender::*;
 
 // Max size of UDP buffer; apparently 1536 is a common UDP MTU.
-static UDP_BUFFER_SIZE: uint = 1536;
+const UDP_BUFFER_SIZE: uint = 1536;
 
 // static BUNDLE_ID: &'static str = "#bundle"; // perhaps we may want to use this some other day
-static BUNDLE_FIRST_CHAR: char = '#';
+const BUNDLE_FIRST_CHAR: char = '#';
 
 // smallest packet is a 0 character address (4 bytes) and a comma for type tag (4 bytes)
-static MIN_OSC_PACKET_SIZE: uint = 8;
-static PACKET_SIZE_ERR: &'static str = "Packet with less than 8 bytes.";
+const MIN_OSC_PACKET_SIZE: uint = 8;
+const PACKET_SIZE_ERR: &'static str = "Packet with less than 8 bytes.";
 
 // we may want to generalize this beyond UDP later
 /// Structure which contains the port used to receive Osc packets, and handles
@@ -235,7 +235,7 @@ fn read_osc_arg(reader: &mut BufReader, type_tag: char) -> IoResult<OscArg> {
 			Ok(v) => Ok(OscBlob(v)),
 			Err(e) => Err(e)
 		},
-		_ 	=> Err(IoError{kind: InvalidInput, desc: "Invalid type tag.", detail: Some(type_tag.to_str())})
+		_ 	=> Err(IoError{kind: InvalidInput, desc: "Invalid type tag.", detail: Some(type_tag.to_string())})
 	}
 }
 
