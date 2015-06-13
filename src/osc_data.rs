@@ -1,5 +1,5 @@
 #![macro_escape]
-//! OSC data types and helper functions for handling those types.
+//! Module that contains OSC data types and helper functions for handling those types.
 
 /// An Osc argument is an actual data payload - a number, string, or binary array.
 /// At present, this library only supports the Osc 1.0 required standard, not any

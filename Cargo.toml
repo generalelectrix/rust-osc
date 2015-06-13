@@ -1,7 +1,7 @@
 [project]
 name = "rust-osc"
 version = "0.1.0"
-authors = []
+authors = [ "general.electrix@gmail.com" ]
 
 [[lib]]
 name = "osc"
