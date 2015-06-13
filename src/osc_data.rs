@@ -4,7 +4,7 @@
 /// An Osc argument is an actual data payload - a number, string, or binary array.
 /// At present, this library only supports the Osc 1.0 required standard, not any
 /// of the optional types or the 1.1 standard.
-#[deriving(Show,Clone,PartialEq,PartialOrd)]
+#[derive(Debug,Clone,PartialEq,PartialOrd)]
 pub enum OscArg {
 	OscInt(i32),
 	OscFloat(f32),
@@ -41,26 +41,24 @@ struct MidiMessage {
 */
 
 /// Helper macro to check if an OscArg is a given type, produces a bool
-#[macro_export]
-macro_rules! arg_is_type(
+macro_rules! arg_is_type{
 	($arg:ident, $targ_var:ident) => (
 		match $arg {
 			$targ_var(_) => true,
 			_ => false
 		}
 	)
-)
+}
 
 /// Helper macro to unwrap an OscArg as a given type, produces None if the types don't match
-#[macro_export]
-macro_rules! unwrap_if(
+macro_rules! unwrap_if{
 	($arg:ident is $kind:ident) => (
 		match $arg {
 			$kind(v) => Some(v),
 			_ => None
 		}
 	)
-)
+}
 
 /// Type definition for a fixed-point OSC time tag.
 pub type OscTimeTag = (u32, u32);
@@ -69,18 +67,18 @@ pub type OscTimeTag = (u32, u32);
 /// either a single OscMessage with an address and a list of arguments, or a
 /// OscBundle, essentialy a single packet with a timestamp containing multiple
 /// OscPackets inside with the intention to execute those packets simultaneously.
-#[deriving(Show,Clone,PartialEq,PartialOrd)]
+#[derive(Debug,Clone,PartialEq,PartialOrd)]
 pub enum OscPacket {
 	/// An OscMessage contains the destination address and list of OscArgs
 	OscMessage{
-		pub addr: String,
-		pub args: Vec<OscArg>
+		addr: String,
+		args: Vec<OscArg>
 	},
 	/// A bundle is intended to synchronize multiple commands; essentially it
 	/// bundles together multiple OSC packets
 	OscBundle{
-		pub time_tag: OscTimeTag,
-		pub conts: Vec<OscPacket>
+		time_tag: OscTimeTag,
+		conts: Vec<OscPacket>
 	}
 }
 

@@ -2,12 +2,15 @@
 
 extern crate std;
 
-use std::io::net::udp::UdpSocket;
-use std::io::net::ip::SocketAddr;
+use std::net::udp::UdpSocket;
+use std::net::ToSocketAddr;
 
-use std::io::{IoResult, IoError, InvalidInput, OtherIoError, BufReader, MemWriter};
-
+use std::io::{Error, Result, BufReader, MemWriter};
+use std::io::ErrorKind::{InvalidInput, Other};
 use std::str::*;
+
+// support for reading raw binary streams into numbers, for testing
+use byteorder::{BigEndian, WriteBytesExt}
 
 use osc_data::*;
 
@@ -38,7 +41,7 @@ impl OscReceiver {
 
 	/// Constructs a new OscReceiver using a socket address.  Returns Err if an
 	/// error occurred when trying to bind to the socket.
-	pub fn new(addr: SocketAddr) -> IoResult<OscReceiver> {
+	pub fn new<A: ToSocketAddr>(addr: A) -> Result<OscReceiver> {
 		match UdpSocket::bind(addr) {
 		    Ok(s) => Ok(OscReceiver{socket: s}),
 		    Err(e) => return Err(e),
@@ -47,7 +50,7 @@ impl OscReceiver {
 
 	/// Receive a Osc packet.  Blocks until a packet is available at the port.
 	/// Can optionally specify a timeout on the blocking read.
-	pub fn recv(&mut self, timeout: Option<u64>) -> IoResult<OscPacket> {
+	pub fn recv(&mut self, timeout: Option<u64>) -> Result<OscPacket> {
 
 		// initialize a receive buffer
 		let mut buf = [0u8, ..UDP_BUFFER_SIZE];
@@ -60,7 +63,7 @@ impl OscReceiver {
 			// ignoring source address from now, can bind it here if desired
 			// if we didn't receive enough data, throw an error
 			Ok((num, _)) if num < MIN_OSC_PACKET_SIZE => {
-				return Err(IoError{kind: InvalidInput, desc: PACKET_SIZE_ERR, detail: None});
+				return Err(Error::new(InvalidInput, PACKET_SIZE_ERR));
 			}
 			// if we received at least 8 bytes, continue
 		    Ok((num, _)) => {
@@ -77,7 +80,7 @@ impl OscReceiver {
 }
 
 // interpret a buffer as an Osc packet; useful as bundles are recursive
-fn read_packet(buf: &[u8]) -> IoResult<OscPacket> {
+fn read_packet(buf: &[u8]) -> Result<OscPacket> {
 	if is_bundle(buf) {
 		read_bundle(buf)
 	}
@@ -92,7 +95,7 @@ fn is_bundle(buf: &[u8]) -> bool {
 }
 
 // read the buffer as a bundle, assuming proper OSC formatting
-fn read_bundle(buf: &[u8]) -> IoResult<OscPacket> {
+fn read_bundle(buf: &[u8]) -> Result<OscPacket> {
 	let mut reader = BufReader::new(buf);
 
 	// ignore 8 byte bundle ID string
@@ -142,7 +145,7 @@ fn read_bundle(buf: &[u8]) -> IoResult<OscPacket> {
 }
 
 // interpret a byte array as an Osc message
-fn read_message(buf: &[u8]) -> IoResult<OscPacket> {
+fn read_message(buf: &[u8]) -> Result<OscPacket> {
 
 	let mut reader = BufReader::new(buf);
 
@@ -164,7 +167,7 @@ fn read_message(buf: &[u8]) -> IoResult<OscPacket> {
 
 	// check to make sure the first char is a comma
 	if tt_str.as_slice().char_at(0) != ',' {
-		return Err(IoError{kind: InvalidInput, desc: "Missing type tag comma.", detail: None});
+		return Err(Error::new(InvalidInput, "Missing type tag comma."));
 	}
 
 	// now read the arguments
@@ -183,13 +186,13 @@ fn read_message(buf: &[u8]) -> IoResult<OscPacket> {
 		Ok(OscMessage{addr: addr, args: args})
 	}
 	else {
-		Err(IoError{kind: OtherIoError, desc: "Failed to read all data in buffer!", detail: None})
+		Err(Error::new(Other, "Failed to read all data in buffer!"))
 	}
 
 }
 
 // Osc strings are null-terminated, we'll do this a lot
-fn read_null_term_string(reader: &mut BufReader) -> IoResult<String> {
+fn read_null_term_string(reader: &mut BufReader) -> Result<String> {
 	// read until null
 	match reader.read_until(0u8) {
 		Ok(mut m) => {
@@ -205,7 +208,7 @@ fn read_null_term_string(reader: &mut BufReader) -> IoResult<String> {
 				},
 				// return an error if we can't parse this as a string
 				None => {
-					Err(IoError{kind: InvalidInput, desc: "Could not parse input as string.", detail: None})
+					Err(Error::new(InvalidInput, "Could not parse input as string."))
 				}
 			}
 		},
@@ -216,7 +219,7 @@ fn read_null_term_string(reader: &mut BufReader) -> IoResult<String> {
 }
 
 // read an osc argument based on a type tag
-fn read_osc_arg(reader: &mut BufReader, type_tag: char) -> IoResult<OscArg> {
+fn read_osc_arg(reader: &mut BufReader, type_tag: char) -> Result<OscArg> {
 
 	match type_tag {
 		'i' => match reader.read_be_i32() {
@@ -235,12 +238,12 @@ fn read_osc_arg(reader: &mut BufReader, type_tag: char) -> IoResult<OscArg> {
 			Ok(v) => Ok(OscBlob(v)),
 			Err(e) => Err(e)
 		},
-		_ 	=> Err(IoError{kind: InvalidInput, desc: "Invalid type tag.", detail: Some(type_tag.to_string())})
+		_ 	=> Err(Error::new(InvalidInput, ("Invalid type tag.", type_tag.to_string()) ))
 	}
 }
 
 // read a blob
-fn read_blob(reader: &mut BufReader) -> IoResult<Vec<u8>> {
+fn read_blob(reader: &mut BufReader) -> Result<Vec<u8>> {
 	let len;
 	match reader.read_be_i32() {
 		Ok(v) => {len = v as uint;},
@@ -343,8 +346,8 @@ fn test_read_null_term_string(){
 #[test]
 fn test_read_blob(){
 
-	let mut buf = MemWriter::new();
-	buf.write_be_i32(9);
+	let mut buf = BufWriter::new();
+	buf.write_i32<BigEndian>(9);
 	buf.write( vec!(0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 10u8, 15u8, 20u8, 0u8, 0u8, 0u8).as_slice() );
 
 	let tbuf = buf.unwrap();

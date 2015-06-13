@@ -2,10 +2,10 @@
 
 extern crate std;
 
-use std::io::net::udp::UdpSocket;
-use std::io::net::ip::SocketAddr;
+use std::net::udp::UdpSocket;
+use std::net::ip::SocketAddr;
 
-use std::io::{IoResult, MemWriter, BufWriter};
+use std::io::{Result, MemWriter, BufWriter};
 
 use std::str::*;
 
@@ -107,7 +107,7 @@ pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 			buf.write_char('\0');
 
 			// pad with nulls to obey osc string spec
-			pad_with_null!(buf write_char args.len()+2)
+			pad_with_null!(buf write_char args.len()+2);
 
 			//--- write all the arguments
 
