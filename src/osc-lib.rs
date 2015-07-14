@@ -1,7 +1,10 @@
 #![crate_name = "osc"]
 
-#![feature(globs)]
-#![feature(struct_variant)]
+#![feature(duration)]
+#![feature(socket_timeout)]
+#![feature(convert)]
+#![feature(str_char)]
+#![feature(io)]
 // if you have made changes and are re-compiling, you may want to turn these warnings back on
 #![allow(unused_must_use)]
 #![allow(dead_code)]

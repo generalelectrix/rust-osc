@@ -1,15 +1,20 @@
 //! Module for sending OSC over a UDP socket.
 
 extern crate std;
+extern crate byteorder;
 
-use std::net::udp::UdpSocket;
-use std::net::ip::SocketAddr;
+use std::net::UdpSocket;
+use std::net::SocketAddrV4;
 
-use std::io::{Result, MemWriter, BufWriter};
+use std::io::{Result, BufWriter};
+use self::byteorder::{BigEndian, WriteBytesExt};
 
-use std::str::*;
+use std::io::prelude::*;
 
 use osc_data::*;
+use osc_data::OscPacket::*;
+use osc_data::OscArg::*;
+
 use osc_util::*;
 
 // we may want to generalize this beyond UDP later
@@ -18,7 +23,7 @@ use osc_util::*;
 pub struct OscSender {
 
 	socket: UdpSocket,
-	dest: SocketAddr
+	dest: SocketAddrV4
 
 }
 
@@ -26,7 +31,7 @@ impl OscSender {
 
 	/// Constructs a new OscSender using a local socket address and a destination
 	/// address.  Returns Err if an error occurred when trying to bind to the socket.
-	pub fn new(local_addr: SocketAddr, dest_addr: SocketAddr) -> IoResult<OscSender> {
+	pub fn new(local_addr: SocketAddrV4, dest_addr: SocketAddrV4) -> Result<OscSender> {
 		match UdpSocket::bind(local_addr) {
 		    Ok(s) => Ok(OscSender{socket: s, dest: dest_addr}),
 		    Err(e) => return Err(e),
@@ -35,10 +40,10 @@ impl OscSender {
 
 
 	/// Attempt to send a Rust OSC packet as an OSC UDP packet.
-	pub fn send(&mut self, packet: OscPacket) -> IoResult<()> {
+	pub fn send(&mut self, packet: OscPacket) -> Result<usize> {
 		// note that we trim off the first four bytes, as they are the packet length
 		// and the socket automatically calcs and sends that
-		self.socket.send_to(packet_to_buffer(packet).slice_from(4), self.dest)
+		self.socket.send_to(&packet_to_buffer(packet).as_slice()[4..], self.dest)
 	}
 
 
@@ -81,33 +86,33 @@ fn arg_to_type_tag(arg: &OscArg) -> char {
 // and is itself tested
 pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 
-	let mut buf = MemWriter::new();
+	let mut buf = Vec::new();
 
 	// write a placeholder for the payload size
-	buf.write_be_i32(0);
+	buf.write_i32::<BigEndian>(0).unwrap();
 
 
 	match packet {
-		OscMessage{ addr: addr, args: args} => {
+		OscMessage{ addr, args} => {
 
 			//--- write the address string
 
-			buf.write_str(to_osc_string(addr).as_slice());
+			buf.write(to_osc_string(addr).as_bytes()).unwrap();
 
 			//--- write the string of type tags
 
 			// starts with a comma
-			buf.write_char(',');
+			buf.write(&[',' as u8]).unwrap();
 
 			// convert all the args to type tags and write them
 			let tt_vec: Vec<u8> = args.iter().map(|a| arg_to_type_tag(a) as u8).collect();
-			buf.write( tt_vec.as_slice() );
+			buf.write( tt_vec.as_slice() ).unwrap();
 
 			// null-terminate type tag string
-			buf.write_char('\0');
+			buf.write(&[0u8]).unwrap();
 
 			// pad with nulls to obey osc string spec
-			pad_with_null!(buf write_char args.len()+2);
+			pad_with_null!(buf write args.len()+2);
 
 			//--- write all the arguments
 
@@ -115,22 +120,22 @@ pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 				write_arg(&mut buf, arg);
 			}
 		},
-		OscBundle{time_tag: time_tag, conts: conts} => {
+		OscBundle{time_tag, conts} => {
 
 			//--- write the bundle identifier string
-			buf.write_str("#bundle\0");
+			buf.write("#bundle\0".as_bytes()).unwrap();
 
 			//--- write the two parts of the time tag
 			match time_tag {
 				(sec, frac_sec) => {
-					buf.write_be_u32(sec);
-					buf.write_be_u32(frac_sec);
+					buf.write_u32::<BigEndian>(sec).unwrap();
+					buf.write_u32::<BigEndian>(frac_sec).unwrap();
 				}
 			}
 
 			//--- write each piece of the bundle payload, themselves Osc packets
 			for packet in conts.into_iter() {
-				buf.write(packet_to_buffer(packet).as_slice());
+				buf.write(packet_to_buffer(packet).as_slice()).unwrap();
 			}
 		}
 	}
@@ -138,13 +143,12 @@ pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 	//--- write the length of the full message payload
 
 	// get rid of the old writer
-	let mut final_buf = buf.unwrap();
-	let size = final_buf.len();
+	let size = buf.len();
 
 	// use a new writer to go back and write the size information
-	BufWriter::new(final_buf.as_mut_slice()).write_be_i32( (size - 4) as i32);
+	BufWriter::new(buf.as_mut_slice()).write_i32::<BigEndian>( (size - 4) as i32).unwrap();
 
-	final_buf
+    buf
 }
 
 // convert a string into a null-terminated, null-padded string
@@ -155,22 +159,24 @@ fn to_osc_string(mut string: String) -> String {
 	string.push('\0');
 
 	// pad with nulls
-	pad_with_null!(string push string.len());
+    for _ in 0usize..four_byte_pad(string.len()) {
+        string.extend(&['\0']);
+    }
 
 	string
 }
 
 // write an OscArg using a given writer
 // it may be helpful later to redefine this as generic on a type that impl Writer
-fn write_arg(buf: &mut MemWriter, arg: OscArg) {
+fn write_arg(buf: &mut Vec<u8>, arg: OscArg) {
 	match arg {
-		OscInt(v) 	=> { buf.write_be_i32(v); },
-		OscFloat(v) => { buf.write_be_f32(v); },
-		OscStr(v) 	=> { buf.write_str(to_osc_string(v).as_slice()); },
+		OscInt(v) 	=> { buf.write_i32::<BigEndian>(v).unwrap(); },
+		OscFloat(v) => { buf.write_f32::<BigEndian>(v).unwrap(); },
+		OscStr(v) 	=> { buf.write(to_osc_string(v).as_str().as_bytes()).unwrap(); },
 		OscBlob(v) 	=> {
-			buf.write_be_i32( v.len() as i32 );
-			buf.write(v.as_slice());
-			pad_with_null!(buf write_char v.len());
+			buf.write_i32::<BigEndian>( v.len() as i32 ).unwrap();
+			buf.write(v.as_slice()).unwrap();
+			pad_with_null!(buf write v.len());
 		}
 	}
 }
@@ -191,20 +197,18 @@ fn test_packet_to_buffer_message() {
 
 	let buf = packet_to_buffer(mess);
 
-	let mut tbuf = MemWriter::new();
-	tbuf.write_be_i32(44);
+	let mut tbuf = Vec::new();
+	tbuf.write_i32::<BigEndian>(44);
 
-	tbuf.write_str("/test/addr\0\0");
-	tbuf.write_str(",ifsb\0\0\0");
-	tbuf.write_be_i32(123);
-	tbuf.write_be_f32(0.0);
-	tbuf.write_str("abc\0");
-	tbuf.write_be_i32(5);
+	tbuf.write("/test/addr\0\0".as_bytes());
+	tbuf.write(",ifsb\0\0\0".as_bytes());
+	tbuf.write_i32::<BigEndian>(123);
+	tbuf.write_f32::<BigEndian>(0.0);
+	tbuf.write("abc\0".as_bytes());
+	tbuf.write_i32::<BigEndian>(5);
 	tbuf.write(vec!(1u8, 2u8, 3u8, 4u8, 5u8, 0u8, 0u8, 0u8).as_slice());
 
-	let tres = tbuf.unwrap();
-
-	assert_eq!(buf, tres);
+	assert_eq!(buf, tbuf);
 }
 
 // many possibilities here, just check a couple by hand
@@ -233,40 +237,37 @@ fn test_packet_to_buffer_bundle() {
 	let res = packet_to_buffer(packet);
 
 
-	let mut tbuf = MemWriter::new();
-	tbuf.write_be_i32(96); // size of total packet
+	let mut tbuf = Vec::new();
+	tbuf.write_i32::<BigEndian>(96); // size of total packet
 
-	tbuf.write_str("#bundle\0");
-	tbuf.write_be_u32(0);
-	tbuf.write_be_u32(1);
+	tbuf.write("#bundle\0".as_bytes());
+	tbuf.write_u32::<BigEndian>(0);
+	tbuf.write_u32::<BigEndian>(1);
 
-	tbuf.write_be_i32(12); // size of first bundle element
-	tbuf.write_str("/t\0\0");
-	tbuf.write_str(",i\0\0");
-	tbuf.write_be_i32(123);
+	tbuf.write_i32::<BigEndian>(12); // size of first bundle element
+	tbuf.write("/t\0\0".as_bytes());
+	tbuf.write(",i\0\0".as_bytes());
+	tbuf.write_i32::<BigEndian>(123);
 
-	tbuf.write_be_i32(60); // size of second bundle element
+	tbuf.write_i32::<BigEndian>(60); // size of second bundle element
 
-	tbuf.write_str("#bundle\0");
-	tbuf.write_be_u32(123);
-	tbuf.write_be_u32(456);
+	tbuf.write("#bundle\0".as_bytes());
+	tbuf.write_u32::<BigEndian>(123);
+	tbuf.write_u32::<BigEndian>(456);
 
-	tbuf.write_be_i32(16); // size of first bundle message
-	tbuf.write_str("/a\0\0");
-	tbuf.write_str(",fs\0");
-	tbuf.write_be_f32(0.0);
-	tbuf.write_str("abc\0");
+	tbuf.write_i32::<BigEndian>(16); // size of first bundle message
+	tbuf.write("/a\0\0".as_bytes());
+	tbuf.write(",fs\0".as_bytes());
+	tbuf.write_f32::<BigEndian>(0.0);
+	tbuf.write("abc\0".as_bytes());
 
-	tbuf.write_be_i32(20); // size of second bundle message
-	tbuf.write_str("/b\0\0");
-	tbuf.write_str(",b\0\0");
-	tbuf.write_be_i32(5);
+	tbuf.write_i32::<BigEndian>(20); // size of second bundle message
+	tbuf.write("/b\0\0".as_bytes());
+	tbuf.write(",b\0\0".as_bytes());
+	tbuf.write_i32::<BigEndian>(5);
 	tbuf.write(vec!(1u8, 2u8, 3u8, 4u8, 5u8, 0u8, 0u8, 0u8).as_slice());
 
-
-	let tres = tbuf.unwrap();
-
-	assert_eq!(tres, res);
+	assert_eq!(tbuf, res);
 }
 
 
@@ -286,7 +287,7 @@ fn test_to_osc_string() {
 // there may be some pathological corner cases I haven't considered here
 #[test]
 fn test_write_arg(){
-	let mut buf = MemWriter::new();
+	let mut buf = Vec::new();
 
 	let a1 = OscInt(123);
 	let a2 = OscFloat(0.0);
@@ -298,18 +299,14 @@ fn test_write_arg(){
 	write_arg(&mut buf, a3);
 	write_arg(&mut buf, a4);
 
-	let res = buf.unwrap();
-
-	let mut tbuf = MemWriter::new();
-	tbuf.write_be_i32(123);
-	tbuf.write_be_f32(0.0);
-	tbuf.write_str("abc\0");
-	tbuf.write_be_i32(5);
+	let mut tbuf = Vec::new();
+	tbuf.write_i32::<BigEndian>(123);
+	tbuf.write_f32::<BigEndian>(0.0);
+	tbuf.write("abc\0".as_bytes());
+	tbuf.write_i32::<BigEndian>(5);
 	tbuf.write(vec!(1u8, 2u8, 3u8, 4u8, 5u8, 0u8, 0u8, 0u8).as_slice());
 
-	let tres = tbuf.unwrap();
-
-	assert_eq!(res, tres);
+	assert_eq!(buf, tbuf);
 
 }
 

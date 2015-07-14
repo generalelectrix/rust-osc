@@ -1,22 +1,21 @@
-#![feature(globs)]
-
 extern crate osc;
 
 use osc::osc_sender::*;
-use osc::osc_data::*;
+use osc::osc_data::OscPacket::*;
+use osc::osc_data::OscArg::*;
 
-use std::io::net::ip::{Ipv4Addr,SocketAddr};
+use std::net::{Ipv4Addr,SocketAddrV4};
 
 fn main() {
 
-	let local_addr = SocketAddr { ip: Ipv4Addr(127, 0, 0, 1), port: 7010 };
-	let dest_addr = SocketAddr { ip: Ipv4Addr(127, 0, 0, 1), port: 7009 };
+	let local_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7010);
+	let dest_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7009);
 
 	let mut sender;
 
 	match OscSender::new(local_addr, dest_addr) {
 		Ok(s) => { sender = s; },
-		Err(e) => { fail!(e); }
+		Err(e) => { panic!(e); }
 	}
 
 	let tests = vec!(
