@@ -1,5 +1,7 @@
 extern crate time;
 
+/// THIS CODE HAS NOT BEEN PORTED TO MODERN (1.3.0) RUST YET.
+
 /// Create and run a new broadcaster, returning the sender used to broadcast a
 /// message to multiple consumers, and the control structure used to generate a
 /// new receiver for a consumer.
