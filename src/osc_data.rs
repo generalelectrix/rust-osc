@@ -1,4 +1,3 @@
-#![macro_escape]
 //! Module that contains OSC data types and helper functions for handling those types.
 
 /// An Osc argument is an actual data payload - a number, string, or binary array.
@@ -22,6 +21,7 @@ pub enum OscArg {
 	OscArray(Vec<OscArg>)
 	*/
 }
+use self::OscArg::*;
 
 // some placeholders for possible eventual OSC 1.1 support
 /*
@@ -81,12 +81,13 @@ pub enum OscPacket {
 		conts: Vec<OscPacket>
 	}
 }
+use self::OscPacket::*;
 
 /// Find out if a packet contains a specified OSC address.
 pub fn packet_has_addr(packet: &OscPacket, addr_match: &str) -> bool {
 	match *packet {
-		OscMessage{addr: ref addr, args: _} => addr_match == addr.as_slice(),
-		OscBundle{time_tag: _, conts: ref conts} => {
+		OscMessage{ref addr, args: _} => addr_match == addr.as_str(),
+		OscBundle{time_tag: _, ref conts} => {
 			for subpacket in conts.iter() {
 				if packet_has_addr(subpacket, addr_match) { return true; }
 			}
@@ -100,15 +101,15 @@ pub fn packet_has_addr(packet: &OscPacket, addr_match: &str) -> bool {
 pub fn get_args_with_addr(packet: OscPacket, addr_match: &str) -> Option<Vec<OscArg>> {
 
 	match packet {
-		OscMessage{addr: addr, args: args} => {
-			if addr_match == addr.as_slice() {
+		OscMessage{addr, args} => {
+			if addr_match == addr.as_str() {
 				Some(args)
 			}
 			else {
 				None
 			}
 		},
-		OscBundle{ time_tag: _, conts: conts} => {
+		OscBundle{ time_tag: _, conts} => {
 			let mut arg_vec = Vec::new();
 			for subpacket in conts.into_iter() {
 				match get_args_with_addr(subpacket, addr_match) {

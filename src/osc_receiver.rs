@@ -1,31 +1,38 @@
 //! Module for receiving OSC over a UDP socket.
 
 extern crate std;
+extern crate byteorder;
 
-use std::net::udp::UdpSocket;
-use std::net::ToSocketAddr;
+use std::net::UdpSocket;
+use std::net::SocketAddrV4;
 
-use std::io::{Error, Result, BufReader, MemWriter};
-use std::io::ErrorKind::{InvalidInput, Other};
+use std::io::{Error, Result, BufReader, BufWriter};
+use std::io::ErrorKind::{InvalidInput};
 use std::str::*;
+use std::io::prelude::*;
 
 // support for reading raw binary streams into numbers, for testing
-use byteorder::{BigEndian, WriteBytesExt}
+use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use self::byteorder::Error::{Io, UnexpectedEOF};
+
+use std::time::Duration;
 
 use osc_data::*;
+use osc_data::OscPacket::*;
+use osc_data::OscArg::*;
+
+use osc_sender::packet_to_buffer;
 
 use osc_util::*;
 
-use osc_sender::*;
-
 // Max size of UDP buffer; apparently 1536 is a common UDP MTU.
-const UDP_BUFFER_SIZE: uint = 1536;
+const UDP_BUFFER_SIZE: usize = 1536;
 
 // static BUNDLE_ID: &'static str = "#bundle"; // perhaps we may want to use this some other day
 const BUNDLE_FIRST_CHAR: char = '#';
 
 // smallest packet is a 0 character address (4 bytes) and a comma for type tag (4 bytes)
-const MIN_OSC_PACKET_SIZE: uint = 8;
+const MIN_OSC_PACKET_SIZE: usize = 8;
 const PACKET_SIZE_ERR: &'static str = "Packet with less than 8 bytes.";
 
 // we may want to generalize this beyond UDP later
@@ -41,7 +48,7 @@ impl OscReceiver {
 
 	/// Constructs a new OscReceiver using a socket address.  Returns Err if an
 	/// error occurred when trying to bind to the socket.
-	pub fn new<A: ToSocketAddr>(addr: A) -> Result<OscReceiver> {
+	pub fn new(addr: SocketAddrV4) -> Result<OscReceiver> {
 		match UdpSocket::bind(addr) {
 		    Ok(s) => Ok(OscReceiver{socket: s}),
 		    Err(e) => return Err(e),
@@ -50,14 +57,14 @@ impl OscReceiver {
 
 	/// Receive a Osc packet.  Blocks until a packet is available at the port.
 	/// Can optionally specify a timeout on the blocking read.
-	pub fn recv(&mut self, timeout: Option<u64>) -> Result<OscPacket> {
+	pub fn recv(&mut self, timeout: Option<Duration>) -> Result<OscPacket> {
 
 		// initialize a receive buffer
-		let mut buf = [0u8, ..UDP_BUFFER_SIZE];
+		let buf = &mut[0; UDP_BUFFER_SIZE];
 
-		let mut packet_len;
+		let packet_len;
 
-		self.socket.set_read_timeout(timeout);
+		try!(self.socket.set_read_timeout(timeout));
 
 		match self.socket.recv_from(buf) {
 			// ignoring source address from now, can bind it here if desired
@@ -75,7 +82,7 @@ impl OscReceiver {
 		    }
 		}
 
-		read_packet(buf.slice_to(packet_len))
+		read_packet(&buf[..packet_len])
 	}
 }
 
@@ -91,52 +98,62 @@ fn read_packet(buf: &[u8]) -> Result<OscPacket> {
 
 // check if the message is a bundle by comparing the first character
 fn is_bundle(buf: &[u8]) -> bool {
-	buf[0] as char == BUNDLE_FIRST_CHAR
+    buf[0] as char == BUNDLE_FIRST_CHAR
 }
 
 // read the buffer as a bundle, assuming proper OSC formatting
 fn read_bundle(buf: &[u8]) -> Result<OscPacket> {
-	let mut reader = BufReader::new(buf);
+	let mut reader = &mut BufReader::new(buf);
 
 	// ignore 8 byte bundle ID string
-	reader.consume(8);
+	reader.take(8).read_to_end(&mut vec!());;
 
 	// read the 64 bit time tag
 	let (sec, frac_sec): OscTimeTag;
 
-	match reader.read_be_u32() {
+	match reader.read_u32::<BigEndian>() {
 		Ok(v) => sec = v,
-		Err(e) => return Err(e)
+		Err(Io(e)) => return Err(e),
+        Err(UnexpectedEOF) => return Err(Error::new(InvalidInput, UnexpectedEOF))
 	}
 
-	match reader.read_be_u32() {
+	match reader.read_u32::<BigEndian>() {
 		Ok(v) => frac_sec = v,
-		Err(e) => return Err(e)
+		Err(Io(e)) => return Err(e),
+        Err(UnexpectedEOF) => return Err(Error::new(InvalidInput, UnexpectedEOF))
 	}
 
 	// now interpret the bundle contents
 	let mut bundle_conts = Vec::new();
 
 	// until we're out of buffer, read elements
-	let mut element_size: uint;
-	while !reader.eof() {
+	let mut element_size: u32;
+	loop {
 		// get the length of the bundle element, should be a mult of 4
-		match reader.read_be_i32() {
-			Ok(n) => element_size = n as uint,
-			Err(e) => return Err(e)
+		match reader.read_i32::<BigEndian>() {
+			Ok(n) => element_size = n as u32,
+            Err(Io(e)) => return Err(e),
+            Err(UnexpectedEOF) =>
+                //  End of bundle
+                break
 		}
 
-		// try to read the specified length
-		match reader.read_exact(element_size) {
-			Ok(b) => {
-				// if we got a valid vector, interpret it as a Osc packet
-				match read_packet(b.as_slice()) {
-					Ok(pack) => bundle_conts.push(pack),
-					Err(e) => return Err(e)
-				}
-			},
-			Err(e) => { return Err(e); }
-		}
+        // try to read the specified length
+        let vec = &mut Vec::new();
+        match reader.take(element_size as u64).read_to_end(vec) {
+            Ok(num_read) => {
+                if num_read == element_size as usize {
+                    // if we got a valid vector, interpret it as a Osc packet
+                    match read_packet(vec.as_slice()) {
+                        Ok(pack) => bundle_conts.push(pack),
+                        Err(e) => return Err(e)
+                    }
+                } else {
+                    break
+                }
+            }
+            _ => break
+        }
 
 
 	}
@@ -166,7 +183,7 @@ fn read_message(buf: &[u8]) -> Result<OscPacket> {
 	}
 
 	// check to make sure the first char is a comma
-	if tt_str.as_slice().char_at(0) != ',' {
+	if tt_str.as_str().char_at(0) != ',' {
 		return Err(Error::new(InvalidInput, "Missing type tag comma."));
 	}
 
@@ -174,88 +191,87 @@ fn read_message(buf: &[u8]) -> Result<OscPacket> {
 	let mut args = Vec::with_capacity(tt_str.len() - 1);
 
 	// iterate over the args, skipping the comma ID
-	for tt in tt_str.as_slice().chars().skip(1) {
+	for tt in tt_str.as_str().chars().skip(1) {
 		match read_osc_arg(&mut reader, tt) {
 			Ok(arg) => { args.push(arg); },
 			Err(e) => { return Err(e); }
 		}
 	}
 
-	// check if we've read all the data; this may be unnecessarily cautious
-	if reader.eof() {
-		Ok(OscMessage{addr: addr, args: args})
-	}
-	else {
-		Err(Error::new(Other, "Failed to read all data in buffer!"))
-	}
-
+    Ok(OscMessage{addr: addr, args: args})
 }
 
 // Osc strings are null-terminated, we'll do this a lot
-fn read_null_term_string(reader: &mut BufReader) -> Result<String> {
+fn read_null_term_string(reader: &mut BufReader<&[u8]>) -> Result<String> {
 	// read until null
-	match reader.read_until(0u8) {
-		Ok(mut m) => {
+    let m = &mut Vec::new();
+	match reader.read_until(0u8, m) {
+        Ok(n) => {
+            if n == 0 {
+                return Err(Error::new(InvalidInput, "No string to read."));
+            }
+        }
+        Err(e) => return Err(e)
+    }
 
-			// Osc strings are always multiples of 4 bytes; read a few more if we didn't get a mult of 4
-			reader.consume(four_byte_pad(m.len()));
+    // Osc strings are always multiples of 4 bytes; read a few more if we didn't get a mult of 4
+    reader.take(four_byte_pad(m.len()) as u64).read_to_end(&mut vec!());
 
-			m.pop(); // remove the trailing null
-			// try to convert to a string
-			match std::str::from_utf8(m.as_slice()) {
-				Some(a) => {
-					Ok(a.into_string())
-				},
-				// return an error if we can't parse this as a string
-				None => {
-					Err(Error::new(InvalidInput, "Could not parse input as string."))
-				}
-			}
-		},
-		Err(e) => {
-			Err(e)
-		}
-	}
+    m.pop(); // remove the trailing null
+    // try to convert to a string
+    match std::str::from_utf8(m.as_slice()) {
+        Ok(a) => {
+            Ok(String::from(a))
+        },
+        // return an error if we can't parse this as a string
+        Err(e) => {
+            Err(Error::new(InvalidInput, e))
+        }
+    }
 }
 
 // read an osc argument based on a type tag
-fn read_osc_arg(reader: &mut BufReader, type_tag: char) -> Result<OscArg> {
+fn read_osc_arg(reader: &mut BufReader<&[u8]>, type_tag: char) -> Result<OscArg> {
 
 	match type_tag {
-		'i' => match reader.read_be_i32() {
+		'i' => match reader.read_i32::<BigEndian>() {
 			Ok(v) => Ok(OscInt(v)),
-			Err(e) => Err(e)
+			Err(Io(e)) => Err(e),
+            Err(UnexpectedEOF) => return Err(Error::new(InvalidInput, UnexpectedEOF))
 		},
-		'f' => match reader.read_be_f32() {
+		'f' => match reader.read_f32::<BigEndian>() {
 			Ok(v) => Ok(OscFloat(v)),
-			Err(e) => Err(e)
+			Err(Io(e)) => Err(e),
+            Err(UnexpectedEOF) => return Err(Error::new(InvalidInput, UnexpectedEOF))
 		},
 		's' => match read_null_term_string(reader) {
 			Ok(v) => Ok(OscStr(v)),
-			Err(e) => Err(e)
+			Err(e) => Err(e),
 		},
 		'b' => match read_blob(reader) {
 			Ok(v) => Ok(OscBlob(v)),
-			Err(e) => Err(e)
+			Err(e) => Err(e),
 		},
-		_ 	=> Err(Error::new(InvalidInput, ("Invalid type tag.", type_tag.to_string()) ))
+		_ 	=> Err(Error::new(InvalidInput, format!("Invalid type tag {}", type_tag.to_string()) ))
 	}
 }
 
 // read a blob
-fn read_blob(reader: &mut BufReader) -> Result<Vec<u8>> {
-	let len;
-	match reader.read_be_i32() {
-		Ok(v) => {len = v as uint;},
-		Err(e) => {return Err(e);}
+fn read_blob(reader: &mut BufReader<&[u8]>) -> Result<Vec<u8>> {
+	let len : u32;
+	match reader.read_i32::<BigEndian>() {
+		Ok(v) => {len = v as u32;},
+		Err(Io(e)) => {return Err(e);},
+        Err(UnexpectedEOF) => return Err(Error::new(InvalidInput, UnexpectedEOF))
 	}
 
-	match reader.read_exact(len) {
-		Ok(v) => {
+    let mut vec = Vec::new();
+    match reader.take(len as u64).read_to_end(&mut vec) {
+		Ok(len) => {
 			reader.consume(four_byte_pad(len));
-			Ok(v)
+			Ok(vec)
 		},
-		Err(e) => Err(e)
+		Err(e) => Err(e),
 	}
 
 }
@@ -274,7 +290,7 @@ fn test_read_message(){
 	};
 
 	let buf = packet_to_buffer(tmess.clone());
-	let resmess = read_message(buf.slice_from(4)).unwrap();
+	let resmess = read_message(&buf.as_slice()[4..]).unwrap();
 
 	assert_eq!(tmess,resmess);
 }
@@ -301,7 +317,7 @@ fn test_read_bundle(){
 	};
 
 	let buf = packet_to_buffer(packet.clone());
-	let res = read_bundle(buf.slice_from(4)).unwrap();
+	let res = read_bundle(&buf.as_slice()[4..]).unwrap();
 
 	assert_eq!(packet,res);
 }
@@ -313,51 +329,52 @@ fn test_read_null_term_string(){
 	// remember that Osc strings are always multiples of 4 bytes!
 
 	// simple case
-	let buf1 = [97u8, 98u8, 99u8, 0u8];
-	let mut reader = BufReader::new(buf1.as_slice());
-	assert_eq!(read_null_term_string(&mut reader),Ok("abc".to_string()));
+	let buf1 = &[97u8, 98u8, 99u8, 0u8];
+	let mut reader1 = BufReader::new(&buf1[..]);
+	assert_eq!(read_null_term_string(&mut reader1).unwrap(),"abc".to_string());
 
 	// multiple nulls and multiple calls
-	let buf2 = [97u8, 98u8, 0u8, 0u8, 99u8, 0u8];
-	reader = BufReader::new(buf2.as_slice());
-	assert_eq!(read_null_term_string(&mut reader),Ok("ab".to_string()));
-	assert_eq!(read_null_term_string(&mut reader),Ok("c".to_string()));
-	assert!(read_null_term_string(&mut reader).is_err());
+	let buf2 = &[97u8, 98u8, 0u8, 0u8, 99u8, 0u8];
+	let mut reader2 = BufReader::new(&buf2[..]);
+	assert_eq!(read_null_term_string(&mut reader2).unwrap(),"ab".to_string());
+	assert_eq!(read_null_term_string(&mut reader2).unwrap(),"c".to_string());
+	assert!(read_null_term_string(&mut reader2).is_err());
 
 
 	// some corner cases
 	let buf3 = [];
-	reader = BufReader::new(buf3.as_slice());
-	assert!(read_null_term_string(&mut reader).is_err());
+	let mut reader3 = BufReader::new(&buf3[..]);
+	assert!(read_null_term_string(&mut reader3).is_err());
 
 	let buf4 = [0u8];
-	reader = BufReader::new(buf4.as_slice());
-	assert_eq!(read_null_term_string(&mut reader),Ok("".to_string()));
-	assert!(read_null_term_string(&mut reader).is_err());
+	let mut reader4 = BufReader::new(&buf4[..]);
+	assert_eq!(read_null_term_string(&mut reader4).unwrap(),"".to_string());
+	assert!(read_null_term_string(&mut reader4).is_err());
 
 	let buf5 = [0u8, 0u8, 0u8, 0u8, 0u8];
-	reader = BufReader::new(buf5.as_slice());
-	assert_eq!(read_null_term_string(&mut reader),Ok("".to_string()));
-	assert_eq!(read_null_term_string(&mut reader),Ok("".to_string()));
-	assert!(read_null_term_string(&mut reader).is_err());
+	let mut reader5 = BufReader::new(&buf5[..]);
+	assert_eq!(read_null_term_string(&mut reader5).unwrap(),"".to_string());
+	assert_eq!(read_null_term_string(&mut reader5).unwrap(),"".to_string());
+	assert!(read_null_term_string(&mut reader5).is_err());
 }
 
 
 #[test]
 fn test_read_blob(){
 
-	let mut buf = BufWriter::new();
-	buf.write_i32<BigEndian>(9);
+	let mut buf = BufWriter::new(vec!());
+	buf.write_i32::<BigEndian>(9);
 	buf.write( vec!(0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 10u8, 15u8, 20u8, 0u8, 0u8, 0u8).as_slice() );
+    buf.flush();
 
-	let tbuf = buf.unwrap();
+	let tbuf = buf.get_ref();
 
 	let mut treader = BufReader::new(tbuf.as_slice());
 
 	let res = read_blob(&mut treader).unwrap();
 
 	assert_eq!(res, vec!(0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 10u8, 15u8, 20u8 ));
-	assert!(treader.eof());
+	assert_eq!(treader.chars().count(), 0usize);
 
 
 }

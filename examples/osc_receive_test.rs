@@ -1,20 +1,18 @@
-#![feature(globs)]
-
 extern crate osc;
 
 use osc::osc_receiver::*;
 
-use std::io::net::ip::{Ipv4Addr,SocketAddr};
+use std::net::{Ipv4Addr,SocketAddrV4};
 
 fn main() {
 
-	let addr = SocketAddr { ip: Ipv4Addr(127, 0, 0, 1), port: 7009 };
+	let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7009);
 
 	let mut receiver;
 
 	match OscReceiver::new(addr) {
 		Ok(r) => {receiver = r;},
-		Err(e) => { fail!(e); }
+		Err(e) => { panic!(e); }
 	}
 
 	loop {
@@ -22,8 +20,8 @@ fn main() {
 		println!("trying to receive");
 
 		match receiver.recv(None) {
-		    Ok(o) => println!("contents: {}",o),
-		    Err(e) => println!("Error: {}", e)
+		    Ok(o) => println!("contents: {:?}",o),
+		    Err(e) => println!("Error: {:?}", e)
 		}
 
 	}
