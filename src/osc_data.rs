@@ -86,7 +86,7 @@ use self::OscPacket::*;
 /// Find out if a packet contains a specified OSC address.
 pub fn packet_has_addr(packet: &OscPacket, addr_match: &str) -> bool {
 	match *packet {
-		OscMessage{ref addr, args: _} => addr_match == addr.as_str(),
+		OscMessage{ref addr, args: _} => addr_match == addr,
 		OscBundle{time_tag: _, ref conts} => {
 			for subpacket in conts.iter() {
 				if packet_has_addr(subpacket, addr_match) { return true; }
@@ -102,7 +102,7 @@ pub fn get_args_with_addr(packet: OscPacket, addr_match: &str) -> Option<Vec<Osc
 
 	match packet {
 		OscMessage{addr, args} => {
-			if addr_match == addr.as_str() {
+			if addr_match == addr {
 				Some(args)
 			}
 			else {

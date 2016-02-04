@@ -43,7 +43,7 @@ impl OscSender {
 	pub fn send(&mut self, packet: OscPacket) -> Result<usize> {
 		// note that we trim off the first four bytes, as they are the packet length
 		// and the socket automatically calcs and sends that
-		self.socket.send_to(&packet_to_buffer(packet).as_slice()[4..], self.dest)
+		self.socket.send_to(&packet_to_buffer(packet)[4..], self.dest)
 	}
 
 
@@ -106,7 +106,7 @@ pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 
 			// convert all the args to type tags and write them
 			let tt_vec: Vec<u8> = args.iter().map(|a| arg_to_type_tag(a) as u8).collect();
-			buf.write( tt_vec.as_slice() ).unwrap();
+			buf.write( tt_vec.as_ref() ).unwrap();
 
 			// null-terminate type tag string
 			buf.write(&[0u8]).unwrap();
@@ -135,7 +135,7 @@ pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 
 			//--- write each piece of the bundle payload, themselves Osc packets
 			for packet in conts.into_iter() {
-				buf.write(packet_to_buffer(packet).as_slice()).unwrap();
+				buf.write(packet_to_buffer(packet).as_ref()).unwrap();
 			}
 		}
 	}
@@ -146,7 +146,7 @@ pub fn packet_to_buffer(packet: OscPacket) -> Vec<u8> {
 	let size = buf.len();
 
 	// use a new writer to go back and write the size information
-	BufWriter::new(buf.as_mut_slice()).write_i32::<BigEndian>( (size - 4) as i32).unwrap();
+	BufWriter::new(&mut buf[..]).write_i32::<BigEndian>( (size - 4) as i32).unwrap();
 
     buf
 }
@@ -172,10 +172,10 @@ fn write_arg(buf: &mut Vec<u8>, arg: OscArg) {
 	match arg {
 		OscInt(v) 	=> { buf.write_i32::<BigEndian>(v).unwrap(); },
 		OscFloat(v) => { buf.write_f32::<BigEndian>(v).unwrap(); },
-		OscStr(v) 	=> { buf.write(to_osc_string(v).as_str().as_bytes()).unwrap(); },
+		OscStr(v) 	=> { buf.write(to_osc_string(v).as_bytes()).unwrap(); },
 		OscBlob(v) 	=> {
 			buf.write_i32::<BigEndian>( v.len() as i32 ).unwrap();
-			buf.write(v.as_slice()).unwrap();
+			buf.write(v.as_ref()).unwrap();
 			pad_with_null!(buf write v.len());
 		}
 	}
@@ -206,7 +206,7 @@ fn test_packet_to_buffer_message() {
 	tbuf.write_f32::<BigEndian>(0.0);
 	tbuf.write("abc\0".as_bytes());
 	tbuf.write_i32::<BigEndian>(5);
-	tbuf.write(vec!(1u8, 2u8, 3u8, 4u8, 5u8, 0u8, 0u8, 0u8).as_slice());
+	tbuf.write(vec!(1u8, 2u8, 3u8, 4u8, 5u8, 0u8, 0u8, 0u8).as_ref());
 
 	assert_eq!(buf, tbuf);
 }
@@ -265,7 +265,7 @@ fn test_packet_to_buffer_bundle() {
 	tbuf.write("/b\0\0".as_bytes());
 	tbuf.write(",b\0\0".as_bytes());
 	tbuf.write_i32::<BigEndian>(5);
-	tbuf.write(vec!(1u8, 2u8, 3u8, 4u8, 5u8, 0u8, 0u8, 0u8).as_slice());
+	tbuf.write(vec!(1u8, 2u8, 3u8, 4u8, 5u8, 0u8, 0u8, 0u8).as_ref());
 
 	assert_eq!(tbuf, res);
 }
@@ -304,7 +304,7 @@ fn test_write_arg(){
 	tbuf.write_f32::<BigEndian>(0.0);
 	tbuf.write("abc\0".as_bytes());
 	tbuf.write_i32::<BigEndian>(5);
-	tbuf.write(vec!(1u8, 2u8, 3u8, 4u8, 5u8, 0u8, 0u8, 0u8).as_slice());
+	tbuf.write(vec!(1u8, 2u8, 3u8, 4u8, 5u8, 0u8, 0u8, 0u8).as_ref());
 
 	assert_eq!(buf, tbuf);
 
