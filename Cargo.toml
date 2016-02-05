@@ -8,4 +8,4 @@ name = "osc"
 path = "src/osc-lib.rs"
 
 [dependencies]
-byteorder = "*"
+byteorder = "~0.4.2"
