@@ -11,11 +11,11 @@ use self::byteorder::{BigEndian, WriteBytesExt};
 
 use std::io::prelude::*;
 
-use osc_data::*;
-use osc_data::OscPacket::*;
-use osc_data::OscArg::*;
+use data::*;
+use data::OscPacket::*;
+use data::OscArg::*;
 
-use osc_util::*;
+use util::*;
 
 // we may want to generalize this beyond UDP later
 /// Structure which contains the port used to send Osc packets, and handles

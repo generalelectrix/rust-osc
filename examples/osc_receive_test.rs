@@ -1,6 +1,6 @@
 extern crate osc;
 
-use osc::osc_receiver::*;
+use osc::receiver::*;
 
 use std::net::{Ipv4Addr,SocketAddrV4};
 

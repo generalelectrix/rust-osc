@@ -5,8 +5,8 @@
 #![allow(unused_imports)]
 
 #[macro_use]
-mod osc_util;  // must declare mods with macro exports in them before users!
-pub mod osc_receiver;
-pub mod osc_sender;
+mod util;  // must declare mods with macro exports in them before users!
+pub mod receiver;
+pub mod sender;
 #[macro_use]
-pub mod osc_data;
+pub mod data;

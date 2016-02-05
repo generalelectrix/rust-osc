@@ -1,8 +1,8 @@
 extern crate osc;
 
-use osc::osc_sender::*;
-use osc::osc_data::OscPacket::*;
-use osc::osc_data::OscArg::*;
+use osc::sender::*;
+use osc::data::OscPacket::*;
+use osc::data::OscArg::*;
 
 use std::net::{Ipv4Addr,SocketAddrV4};
 

@@ -17,13 +17,13 @@ use self::byteorder::Error::{Io, UnexpectedEOF};
 
 use std::time::Duration;
 
-use osc_data::*;
-use osc_data::OscPacket::*;
-use osc_data::OscArg::*;
+use data::*;
+use data::OscPacket::*;
+use data::OscArg::*;
 
-use osc_sender::packet_to_buffer;
+use sender::packet_to_buffer;
 
-use osc_util::*;
+use util::*;
 
 // Max size of UDP buffer; apparently 1536 is a common UDP MTU.
 const UDP_BUFFER_SIZE: usize = 1536;
