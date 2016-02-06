@@ -2,11 +2,9 @@ extern crate osc;
 
 use osc::receiver::*;
 
-use std::net::{Ipv4Addr,SocketAddrV4};
-
 fn main() {
 
-	let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7009);
+	let addr = "localhost:7009";
 
 	let mut receiver;
 
