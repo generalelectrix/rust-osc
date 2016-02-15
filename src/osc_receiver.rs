@@ -144,7 +144,7 @@ fn read_bundle(buf: &[u8]) -> Result<OscPacket> {
             Ok(num_read) => {
                 if num_read == element_size as usize {
                     // if we got a valid vector, interpret it as a Osc packet
-                    match read_packet(vec.as_slice()) {
+                    match read_packet(vec.as_ref()) {
                         Ok(pack) => bundle_conts.push(pack),
                         Err(e) => return Err(e)
                     }
@@ -183,7 +183,7 @@ fn read_message(buf: &[u8]) -> Result<OscPacket> {
 	}
 
 	// check to make sure the first char is a comma
-	if tt_str.as_str().char_at(0) != ',' {
+	if tt_str.chars().nth(0) != Some(',') {
 		return Err(Error::new(InvalidInput, "Missing type tag comma."));
 	}
 
@@ -191,7 +191,7 @@ fn read_message(buf: &[u8]) -> Result<OscPacket> {
 	let mut args = Vec::with_capacity(tt_str.len() - 1);
 
 	// iterate over the args, skipping the comma ID
-	for tt in tt_str.as_str().chars().skip(1) {
+	for tt in tt_str.chars().skip(1) {
 		match read_osc_arg(&mut reader, tt) {
 			Ok(arg) => { args.push(arg); },
 			Err(e) => { return Err(e); }
@@ -219,7 +219,7 @@ fn read_null_term_string(reader: &mut BufReader<&[u8]>) -> Result<String> {
 
     m.pop(); // remove the trailing null
     // try to convert to a string
-    match std::str::from_utf8(m.as_slice()) {
+    match std::str::from_utf8(m.as_ref()) {
         Ok(a) => {
             Ok(String::from(a))
         },
@@ -290,7 +290,7 @@ fn test_read_message(){
 	};
 
 	let buf = packet_to_buffer(tmess.clone());
-	let resmess = read_message(&buf.as_slice()[4..]).unwrap();
+	let resmess = read_message(&buf[4..]).unwrap();
 
 	assert_eq!(tmess,resmess);
 }
@@ -317,7 +317,7 @@ fn test_read_bundle(){
 	};
 
 	let buf = packet_to_buffer(packet.clone());
-	let res = read_bundle(&buf.as_slice()[4..]).unwrap();
+	let res = read_bundle(&buf[4..]).unwrap();
 
 	assert_eq!(packet,res);
 }
@@ -364,17 +364,20 @@ fn test_read_blob(){
 
 	let mut buf = BufWriter::new(vec!());
 	buf.write_i32::<BigEndian>(9);
-	buf.write( vec!(0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 10u8, 15u8, 20u8, 0u8, 0u8, 0u8).as_slice() );
-    buf.flush();
+	buf.write( vec!(0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 10u8, 15u8, 20u8, 0u8, 0u8, 0u8).as_ref() );
+     buf.flush();
 
 	let tbuf = buf.get_ref();
 
-	let mut treader = BufReader::new(tbuf.as_slice());
+	let mut treader = BufReader::new(tbuf.as_ref());
+     let mut teststr = String::new();
 
 	let res = read_blob(&mut treader).unwrap();
 
+     treader.read_to_string(&mut teststr);
+
 	assert_eq!(res, vec!(0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 10u8, 15u8, 20u8 ));
-	assert_eq!(treader.chars().count(), 0usize);
+	assert_eq!(teststr.len(), 0usize);
 
 
 }
