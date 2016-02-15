@@ -7,7 +7,7 @@ support for them commented out in this code.  This implementation leverages Rust
 ADT for representing all the different classes of Osc arguments and messages as
 two enum types with variants.
 
-This was compiled and tested under Rust 1.3.0 nightly as of July 14, 2015.
+This was compiled and tested under Rust 1.6 stable as of February 2016.
 
 To compile the examples, compile src/osc-lib.rs into a library and tell the compiler
 to link to it.
