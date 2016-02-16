@@ -1,15 +1,13 @@
 extern crate osc;
 
-use osc::osc_sender::*;
-use osc::osc_data::OscPacket::*;
-use osc::osc_data::OscArg::*;
-
-use std::net::{Ipv4Addr,SocketAddrV4};
+use osc::sender::*;
+use osc::data::OscPacket::*;
+use osc::data::OscArg::*;
 
 fn main() {
 
-	let local_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7010);
-	let dest_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 7009);
+	let local_addr = "localhost:7010";
+	let dest_addr = "localhost:7009";
 
 	let mut sender;
 

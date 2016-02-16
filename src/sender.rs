@@ -5,45 +5,46 @@ extern crate byteorder;
 
 use std::net::UdpSocket;
 use std::net::SocketAddrV4;
+use std::net::ToSocketAddrs;
 
 use std::io::{Result, BufWriter};
 use self::byteorder::{BigEndian, WriteBytesExt};
 
 use std::io::prelude::*;
 
-use osc_data::*;
-use osc_data::OscPacket::*;
-use osc_data::OscArg::*;
+use data::*;
+use data::OscPacket::*;
+use data::OscArg::*;
 
-use osc_util::*;
+use util::*;
 
 // we may want to generalize this beyond UDP later
 /// Structure which contains the port used to send Osc packets, and handles
 /// the task of converting Rust Osc objects into valic Osc messages
-pub struct OscSender {
+pub struct OscSender<T: ToSocketAddrs> {
 
 	socket: UdpSocket,
-	dest: SocketAddrV4
+	dest: T
 
 }
 
-impl OscSender {
+impl<T: ToSocketAddrs> OscSender<T> {
 
-	/// Constructs a new OscSender using a local socket address and a destination
-	/// address.  Returns Err if an error occurred when trying to bind to the socket.
-	pub fn new(local_addr: SocketAddrV4, dest_addr: SocketAddrV4) -> Result<OscSender> {
-		match UdpSocket::bind(local_addr) {
-		    Ok(s) => Ok(OscSender{socket: s, dest: dest_addr}),
-		    Err(e) => return Err(e),
-		}
-	}
+    /// Constructs a new OscSender using a local socket address and a destination
+    /// address.  Returns Err if an error occurred when trying to bind to the socket.
+    pub fn new(local_addr: T, dest_addr: T) -> Result<Self> {
+        match UdpSocket::bind(local_addr) {
+            Ok(s) => Ok(OscSender{socket: s, dest: dest_addr}),
+            Err(e) => return Err(e),
+        }
+    }
 
 
 	/// Attempt to send a Rust OSC packet as an OSC UDP packet.
 	pub fn send(&mut self, packet: OscPacket) -> Result<usize> {
 		// note that we trim off the first four bytes, as they are the packet length
 		// and the socket automatically calcs and sends that
-		self.socket.send_to(&packet_to_buffer(packet)[4..], self.dest)
+		self.socket.send_to(&packet_to_buffer(packet)[4..], &self.dest)
 	}
 
 

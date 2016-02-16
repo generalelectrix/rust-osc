@@ -5,6 +5,7 @@ extern crate byteorder;
 
 use std::net::UdpSocket;
 use std::net::SocketAddrV4;
+use std::net::ToSocketAddrs;
 
 use std::io::{Error, Result, BufReader, BufWriter};
 use std::io::ErrorKind::{InvalidInput};
@@ -17,13 +18,13 @@ use self::byteorder::Error::{Io, UnexpectedEOF};
 
 use std::time::Duration;
 
-use osc_data::*;
-use osc_data::OscPacket::*;
-use osc_data::OscArg::*;
+use data::*;
+use data::OscPacket::*;
+use data::OscArg::*;
 
-use osc_sender::packet_to_buffer;
+use sender::packet_to_buffer;
 
-use osc_util::*;
+use util::*;
 
 // Max size of UDP buffer; apparently 1536 is a common UDP MTU.
 const UDP_BUFFER_SIZE: usize = 1536;
@@ -48,7 +49,7 @@ impl OscReceiver {
 
 	/// Constructs a new OscReceiver using a socket address.  Returns Err if an
 	/// error occurred when trying to bind to the socket.
-	pub fn new(addr: SocketAddrV4) -> Result<OscReceiver> {
+	pub fn new<T:ToSocketAddrs>(addr: T) -> Result<OscReceiver> {
 		match UdpSocket::bind(addr) {
 		    Ok(s) => Ok(OscReceiver{socket: s}),
 		    Err(e) => return Err(e),

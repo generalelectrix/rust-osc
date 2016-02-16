@@ -5,7 +5,6 @@ authors = [ "general.electrix@gmail.com" ]
 
 [lib]
 name = "osc"
-path = "src/osc-lib.rs"
 
 [dependencies]
 byteorder = "~0.4.2"
