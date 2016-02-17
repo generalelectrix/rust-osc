@@ -1,5 +1,5 @@
 [project]
-name = "rust-osc"
+name = "osc"
 version = "0.1.0"
 authors = [ "general.electrix@gmail.com" ]
 
