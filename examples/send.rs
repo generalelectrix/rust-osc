@@ -9,12 +9,7 @@ fn main() {
 	let local_addr = "localhost:7010";
 	let dest_addr = "localhost:7009";
 
-	let sender;
-
-	match OscSender::new(local_addr, dest_addr) {
-		Ok(s) => { sender = s; },
-		Err(e) => { panic!(e); }
-	}
+	let sender = OscSender::new(local_addr, dest_addr).unwrap();
 
 	let tests = vec!(
 		OscMessage{
