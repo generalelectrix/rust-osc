@@ -9,7 +9,7 @@ fn main() {
 	let local_addr = "localhost:7010";
 	let dest_addr = "localhost:7009";
 
-	let mut sender;
+	let sender;
 
 	match OscSender::new(local_addr, dest_addr) {
 		Ok(s) => { sender = s; },
@@ -41,9 +41,7 @@ fn main() {
 		}
 	);
 
-	let mut i = 0;
-
-	loop {
+     for i in 0..5 {
 
 		println!("trying to send");
 
@@ -51,10 +49,6 @@ fn main() {
 		    Ok(_) => println!("send ok"),
 		    Err(e) => println!("Error: {}", e)
 		}
-
-		i += 1;
-
-		if i == 4 {break;}
 
 		//std::io::timer::sleep(1000);
 	}
