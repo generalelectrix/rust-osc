@@ -41,7 +41,7 @@ impl<T: ToSocketAddrs> OscSender<T> {
 
 
 	/// Attempt to send a Rust OSC packet as an OSC UDP packet.
-	pub fn send(&mut self, packet: OscPacket) -> Result<usize> {
+	pub fn send(&self, packet: OscPacket) -> Result<usize> {
 		// note that we trim off the first four bytes, as they are the packet length
 		// and the socket automatically calcs and sends that
 		self.socket.send_to(&packet_to_buffer(packet)[4..], &self.dest)

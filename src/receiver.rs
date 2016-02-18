@@ -58,7 +58,7 @@ impl OscReceiver {
 
 	/// Receive a Osc packet.  Blocks until a packet is available at the port.
 	/// Can optionally specify a timeout on the blocking read.
-	pub fn recv(&mut self, timeout: Option<Duration>) -> Result<OscPacket> {
+	pub fn recv(&self, timeout: Option<Duration>) -> Result<OscPacket> {
 
 		// initialize a receive buffer
 		let buf = &mut[0; UDP_BUFFER_SIZE];

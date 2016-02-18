@@ -6,12 +6,7 @@ fn main() {
 
 	let addr = "localhost:7009";
 
-	let mut receiver;
-
-	match OscReceiver::new(addr) {
-		Ok(r) => {receiver = r;},
-		Err(e) => { panic!(e); }
-	}
+	let receiver = OscReceiver::new(addr).unwrap();
 
 	loop {
 
