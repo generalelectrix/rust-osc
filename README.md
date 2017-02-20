@@ -1,3 +1,5 @@
+*This repository is no longer maintained.  I'd recommend rosc instead, available on crates.io and at https://github.com/klingtnet/rosc .  It provides more extensive support for the full OSC spec and is pretty much identical in implementation as this package in all important respects.*
+
 rust-osc
 ========
 
